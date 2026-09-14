@@ -22,8 +22,18 @@ inputs:
       Selects the LLM protocol (mapped to env OCR_USE_ANTHROPIC). An explicitly supplied empty
       string, true, 1, or yes selects Anthropic
       case-insensitively; every other value selects the OpenAI-compatible
-      protocol, preserving the CLI environment contract.
+      protocol, preserving the CLI environment contract. Ignored when
+      llm_protocol is set.
     required: true
+  llm_protocol:
+    description: >-
+      Optional explicit LLM protocol override (e.g. openai, openai-responses,
+      anthropic, or any protocol the CLI accepts). When set, it wins over the
+      protocol derived from llm_use_anthropic, so OpenAI-compatible providers
+      that need a non-default protocol (such as the Responses API) are not
+      forced to /v1/chat/completions.
+    required: false
+    default: ''
   llm_auth_header:
     description: Custom auth header name (mapped to env OCR_LLM_AUTH_HEADER).
     required: false
@@ -504,22 +514,28 @@ runs:
         OCR_LLM_URL: ${{ inputs.llm_url }}
         OCR_LLM_MODEL: ${{ inputs.llm_model }}
         OCR_USE_ANTHROPIC: ${{ inputs.llm_use_anthropic }}
+        OCR_LLM_PROTOCOL: ${{ inputs.llm_protocol }}
         OCR_LLM_AUTH_HEADER: ${{ inputs.llm_auth_header }}
         OCR_EXTRA_BODY: ${{ inputs.llm_extra_body }}
         OCR_LANGUAGE: ${{ inputs.language }}
       shell: bash
       run: |
-        NORMALIZED_USE_ANTHROPIC="$(printf '%s' "$OCR_USE_ANTHROPIC" | tr '[:upper:]' '[:lower:]')"
-        case "$NORMALIZED_USE_ANTHROPIC" in
-          ""|true|1|yes)
-            OCR_USE_ANTHROPIC="true"
-            OCR_LLM_PROTOCOL="anthropic"
-            ;;
-          *)
-            OCR_USE_ANTHROPIC="false"
-            OCR_LLM_PROTOCOL="openai"
-            ;;
-        esac
+        # An explicit llm_protocol input wins over derivation: some
+        # OpenAI-compatible providers need openai-responses (or another
+        # protocol) and must not be forced back to chat/completions.
+        if [ -z "$OCR_LLM_PROTOCOL" ]; then
+          NORMALIZED_USE_ANTHROPIC="$(printf '%s' "$OCR_USE_ANTHROPIC" | tr '[:upper:]' '[:lower:]')"
+          case "$NORMALIZED_USE_ANTHROPIC" in
+            ""|true|1|yes)
+              OCR_USE_ANTHROPIC="true"
+              OCR_LLM_PROTOCOL="anthropic"
+              ;;
+            *)
+              OCR_USE_ANTHROPIC="false"
+              OCR_LLM_PROTOCOL="openai"
+              ;;
+          esac
+        fi
         # reasoning_effort is OpenAI-compatible vocabulary; the Anthropic API
         # rejects unknown body fields, so fail fast instead of breaking every
         # request. Anthropic thinking control goes through an explicit

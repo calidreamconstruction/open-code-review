@@ -73,12 +73,12 @@ func TestComputeLineDiff(t *testing.T) {
 			wantDels: 1,
 		},
 		{
-			name:     "case insensitive match with whitespace",
+			name:     "whitespace and case change is a real change",
 			old:      []string{"  Hello  "},
 			new:      []string{"hello"},
-			wantLen:  1,
-			wantAdds: 0,
-			wantDels: 0,
+			wantLen:  2,
+			wantAdds: 1,
+			wantDels: 1,
 		},
 		{
 			name:     "multi-line edit",
@@ -126,5 +126,41 @@ func TestComputeLineDiff_ContextContent(t *testing.T) {
 	last := got[len(got)-1]
 	if last.Type != DiffContext || last.Content != "c" {
 		t.Errorf("last line should be context 'c', got %+v", last)
+	}
+}
+
+func TestComputeLineDiff_IndentationOnlyChangeIsARemovalAndAdd(t *testing.T) {
+	old := []string{"func f() {", "\treturn nil", "}"}
+	new := []string{"func f() {", "\t\treturn nil", "}"}
+	got := ComputeLineDiff(old, new)
+	added, deleted := 0, 0
+	for _, l := range got {
+		if l.Type == DiffAdded {
+			added++
+		}
+		if l.Type == DiffDeleted {
+			deleted++
+		}
+	}
+	if added == 0 || deleted == 0 {
+		t.Errorf("indentation-only change not rendered as a change: added=%d deleted=%d", added, deleted)
+	}
+}
+
+func TestComputeLineDiff_CaseOnlyChangeIsARemovalAndAdd(t *testing.T) {
+	old := []string{"const maxRetries = 3"}
+	new := []string{"const MaxRetries = 3"}
+	got := ComputeLineDiff(old, new)
+	added, deleted := 0, 0
+	for _, l := range got {
+		if l.Type == DiffAdded {
+			added++
+		}
+		if l.Type == DiffDeleted {
+			deleted++
+		}
+	}
+	if added == 0 || deleted == 0 {
+		t.Errorf("case-only change not rendered as a change: added=%d deleted=%d", added, deleted)
 	}
 }

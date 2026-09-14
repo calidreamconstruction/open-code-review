@@ -5,8 +5,6 @@
 // used for CLI rendering of review suggestions with ANSI color codes.
 package suggestdiff
 
-import "strings"
-
 // DiffLineType marks a line as context, added, or deleted.
 type DiffLineType int
 
@@ -37,7 +35,7 @@ func ComputeLineDiff(oldLines, newLines []string) []DiffLine {
 	}
 	for i := 1; i <= m; i++ {
 		for j := 1; j <= n; j++ {
-			if strings.EqualFold(strings.TrimSpace(oldLines[i-1]), strings.TrimSpace(newLines[j-1])) {
+			if oldLines[i-1] == newLines[j-1] {
 				lcs[i][j] = lcs[i-1][j-1] + 1
 			} else {
 				lcs[i][j] = max(lcs[i-1][j], lcs[i][j-1])
@@ -50,7 +48,7 @@ func ComputeLineDiff(oldLines, newLines []string) []DiffLine {
 	i, j := m, n
 	back := make([]DiffLine, 0, max(m, n)*2)
 	for i > 0 || j > 0 {
-		if i > 0 && j > 0 && strings.EqualFold(strings.TrimSpace(oldLines[i-1]), strings.TrimSpace(newLines[j-1])) {
+		if i > 0 && j > 0 && oldLines[i-1] == newLines[j-1] {
 			back = append(back, DiffLine{Type: DiffContext, Content: oldLines[i-1]})
 			i--
 			j--

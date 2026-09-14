@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,7 +45,7 @@ func TestRunScanPreview(t *testing.T) {
 		t.Fatalf("LoadScanDefault: %v", err)
 	}
 	silenceStdout(t, func() {
-		if err := runScanPreview(cc, scanTpl, nil, "text", os.Stdout); err != nil {
+		if err := runScanPreview(context.Background(), cc, scanTpl, nil, "text", os.Stdout); err != nil {
 			t.Fatalf("runScanPreview error: %v", err)
 		}
 	})
@@ -63,7 +64,7 @@ func TestRunScanPreviewJSONFormat(t *testing.T) {
 	}
 
 	out := captureStdout(t, func() {
-		if err := runScanPreview(cc, scanTpl, nil, "json", os.Stdout); err != nil {
+		if err := runScanPreview(context.Background(), cc, scanTpl, nil, "json", os.Stdout); err != nil {
 			t.Errorf("runScanPreview error: %v", err)
 		}
 	})
@@ -101,7 +102,7 @@ func TestRunScanPreviewAppliesMaxTokens(t *testing.T) {
 	}
 
 	out := captureStdout(t, func() {
-		if err := executeScan(scanOptions{
+		if err := executeScan(context.Background(), scanOptions{
 			repoDir:      dir,
 			paths:        "large.go",
 			outputFormat: "json",
@@ -144,7 +145,7 @@ func TestRunScanPreviewCreatesNoSession(t *testing.T) {
 		t.Fatalf("LoadScanDefault: %v", err)
 	}
 	silenceStdout(t, func() {
-		if err := runScanPreview(cc, scanTpl, nil, "text", os.Stdout); err != nil {
+		if err := runScanPreview(context.Background(), cc, scanTpl, nil, "text", os.Stdout); err != nil {
 			t.Fatalf("runScanPreview error: %v", err)
 		}
 	})

@@ -1124,6 +1124,34 @@ function testConfigureProtocolTracksUseAnthropic() {
   }
 }
 
+function testConfigureProtocolOverrideWinsOverDerivation() {
+  const configure = stepNamed("Configure OCR");
+  assert.ok(configure, "action.yml must retain the Configure OCR step");
+  const cases = [
+    ["openai-responses", "false", "openai-responses"],
+    ["anthropic", "false", "anthropic"],
+    ["openai", "true", "openai"],
+  ];
+  for (const [protocol, useAnthropic, expectedProtocol] of cases) {
+    const fixture = makeFixture();
+    try {
+      const values = inputValues({
+        llm_url: "https://llm.example.invalid/v1",
+        llm_model: "contract-model",
+        llm_use_anthropic: useAnthropic,
+        llm_protocol: protocol,
+        llm_auth_token: "protocol-token-sentinel",
+      });
+      const result = runStep(configure, values, fixture);
+      assert.strictEqual(result.status, 0, `Configure OCR failed for llm_protocol=${protocol}; ${resultDescription(result)}`);
+      const configured = configValues(configOperations(fixture));
+      assert.strictEqual(configured["llm.protocol"], expectedProtocol, `llm_protocol=${protocol} must be honored verbatim`);
+    } finally {
+      removeFixture(fixture);
+    }
+  }
+}
+
 function testConfigurePreservesLegacyUseAnthropicResolution() {
   const configure = stepNamed("Configure OCR");
   assert.ok(configure, "action.yml must retain the Configure OCR step");
@@ -1615,6 +1643,7 @@ const TESTS = [
   ["Configure OCR never persists the token", testConfigureNeverPersistsToken],
   ["Configure OCR neutralizes stale provider and static token", testConfigureNeutralizesStaleProviderAndStaticToken],
   ["Configure OCR sets a protocol consistent with use_anthropic", testConfigureProtocolTracksUseAnthropic],
+  ["Configure OCR honors an explicit llm_protocol override", testConfigureProtocolOverrideWinsOverDerivation],
   ["Configure OCR preserves legacy use_anthropic resolution", testConfigurePreservesLegacyUseAnthropicResolution],
   ["Configure OCR clears stale persisted extra headers", testConfigureClearsStaleExtraHeadersBeforeTokenCommand],
   ["Configure OCR clears stale persisted retry codes", testConfigureClearsStaleRetryCodesBeforeEndpointConfig],

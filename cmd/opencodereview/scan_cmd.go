@@ -85,7 +85,13 @@ var scanCmd = &cobra.Command{
 		if err := validateScanOptions(&scanOpts); err != nil {
 			return err
 		}
-		return executeScan(scanOpts)
+		// First signal cancels the context so scan can finalize its
+		// session and preserve completed work for --resume; a second
+		// signal force-exits instead of being dropped for the whole
+		// shutdown window (see interrupt.go).
+		ctx, stop := interruptContextWithForcedExit(cmd.Context())
+		defer stop()
+		return executeScan(ctx, scanOpts)
 	},
 }
 
@@ -108,7 +114,7 @@ func splitPaths(raw string) []string {
 	return out
 }
 
-func executeScan(opts scanOptions) (retErr error) {
+func executeScan(ctx context.Context, opts scanOptions) (retErr error) {
 	out, closeOut, err := resolveOutputWriter(opts.outputPath, opts.outputFormat)
 	if err != nil {
 		return err
@@ -157,7 +163,7 @@ func executeScan(opts scanOptions) (retErr error) {
 			return err
 		}
 		scanTpl.MaxTokens = maxTokens
-		return runScanPreview(cc, scanTpl, scanPaths, opts.outputFormat, out)
+		return runScanPreview(ctx, cc, scanTpl, scanPaths, opts.outputFormat, out)
 
 	}
 
@@ -231,7 +237,7 @@ func executeScan(opts scanOptions) (retErr error) {
 	q := newQuietHandle(opts.outputFormat, opts.audience)
 	defer q.Restore()
 
-	ctx, span := telemetry.StartSpan(telemetry.ContextWithTraceParentFromEnv(context.Background()), "scan.run")
+	ctx, span := telemetry.StartSpan(telemetry.ContextWithTraceParentFromEnv(ctx), "scan.run")
 	defer span.End()
 	var traceID string
 	if telemetry.IsEnabled() {
@@ -272,8 +278,8 @@ func loadScanResumeState(repoDir string, opts scanOptions, scanPaths []string) (
 	return state, nil
 }
 
-func runScanPreview(cc *commonContext, scanTpl *template.ScanTemplate, scanPaths []string, outputFormat string, out io.Writer) error {
-	preview, err := scan.Preview(context.Background(), scan.Args{
+func runScanPreview(ctx context.Context, cc *commonContext, scanTpl *template.ScanTemplate, scanPaths []string, outputFormat string, out io.Writer) error {
+	preview, err := scan.Preview(ctx, scan.Args{
 		RepoDir:          cc.RepoDir,
 		Paths:            scanPaths,
 		FileFilter:       cc.FileFilter,
