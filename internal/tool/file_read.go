@@ -25,6 +25,9 @@ func (p *FileReadProvider) Execute(ctx context.Context, args map[string]any) (st
 	if filePath == "" {
 		return "Error: file_path is required", nil
 	}
+	if !p.FileReader.AllowRead(filePath) {
+		return fmt.Sprintf("Error: %q is not part of the reviewed change; read only files listed in the diff", filePath), nil
+	}
 
 	startLine, hasStart := args["start_line"].(float64)
 	endLine, hasEnd := args["end_line"].(float64)

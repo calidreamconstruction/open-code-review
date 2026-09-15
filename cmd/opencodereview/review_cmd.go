@@ -16,6 +16,7 @@ import (
 
 	"github.com/alibaba/open-code-review/internal/agent"
 	"github.com/alibaba/open-code-review/internal/diff"
+	"github.com/alibaba/open-code-review/internal/gitcmd"
 	"github.com/alibaba/open-code-review/internal/llm"
 	"github.com/alibaba/open-code-review/internal/mcp"
 	"github.com/alibaba/open-code-review/internal/session"
@@ -199,10 +200,11 @@ func executeReviewContext(ctx context.Context, opts reviewOptions) (retErr error
 
 	mode := tool.ParseReviewMode(opts.from, opts.to, opts.commit)
 	fileReader := &tool.FileReader{
-		RepoDir: cc.RepoDir,
-		Mode:    mode,
-		Ref:     fileReadRef(mode, opts, sealedInput),
-		Runner:  cc.GitRunner,
+		RepoDir:      cc.RepoDir,
+		Mode:         mode,
+		Ref:          fileReadRef(mode, opts, sealedInput),
+		Runner:       cc.GitRunner,
+		ChangedPaths: reviewChangedPaths(ctx, cc.RepoDir, mode, opts, cc.GitRunner),
 	}
 	tools := buildToolRegistry(rt.Collector, fileReader)
 
@@ -437,6 +439,38 @@ func fileReadRef(mode tool.ReviewMode, opts reviewOptions, sealed *diff.InputRes
 		return sealed.ResolvedHead
 	}
 	return ref
+}
+
+// reviewChangedPaths precomputes the set of paths in the reviewed change so
+// file_read can refuse to wander outside it (see #989). It is best-effort: on
+// any error the allowlist stays nil, which keeps file_read unrestricted exactly
+// as it was before — a mapping failure must never hide paths from the previous
+// behavior. Workspace reviews have no ref to constrain against and pass nil.
+func reviewChangedPaths(ctx context.Context, repoDir string, mode tool.ReviewMode, opts reviewOptions, runner *gitcmd.Runner) map[string]bool {
+	var prov *diff.Provider
+	switch mode {
+	case tool.ModeCommit:
+		prov = diff.NewCommitProvider(repoDir, opts.commit, runner)
+	case tool.ModeRange:
+		prov = diff.NewProvider(repoDir, opts.from, opts.to, runner)
+	default:
+		return nil
+	}
+	set, err := prov.GetDiffSet(ctx)
+	if err != nil || len(set.Included) == 0 {
+		return nil
+	}
+	paths := make(map[string]bool, len(set.Included)*2)
+	for i := range set.Included {
+		d := &set.Included[i]
+		if d.NewPath != "" && d.NewPath != "/dev/null" {
+			paths[d.NewPath] = true
+		}
+		if d.OldPath != "" && d.OldPath != "/dev/null" {
+			paths[d.OldPath] = true
+		}
+	}
+	return paths
 }
 
 func reviewModeFromOptions(opts reviewOptions) string {
