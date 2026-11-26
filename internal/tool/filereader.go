@@ -60,8 +60,22 @@ type FileReader struct {
 	Mode    ReviewMode
 	// Ref is the git ref to use for ModeRange (--to) or ModeCommit (--commit).
 	// Empty for ModeWorkspace.
-	Ref    string
-	Runner *gitcmd.Runner
+	Ref string
+	// ChangedPaths, when non-nil, restricts reads in ModeRange / ModeCommit to
+	// paths that are part of the reviewed change. A nil allowlist means no
+	// restriction (workspace, untracked, and non-git runs).
+	ChangedPaths map[string]bool
+	Runner       *gitcmd.Runner
+}
+
+// AllowRead reports whether a path may be read in the current mode. With no
+// allowlist configured every path passes; otherwise a path is readable only
+// when it belongs to the reviewed change.
+func (fr *FileReader) AllowRead(path string) bool {
+	if fr.ChangedPaths == nil {
+		return true
+	}
+	return fr.ChangedPaths[path]
 }
 
 // Read returns the full content of a file path (relative to RepoDir),

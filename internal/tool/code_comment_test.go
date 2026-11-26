@@ -139,6 +139,71 @@ func TestParseComments_Fields(t *testing.T) {
 // TestParseComments_CategorySeverity verifies the structured category and severity
 // fields are read off each comment object when present, and left zero-valued when
 // absent (older/less-capable models that omit them still produce valid comments).
+func TestParseComments_ExplicitLineNumbers(t *testing.T) {
+	t.Run("honored when present", func(t *testing.T) {
+		args := map[string]any{
+			"comments": []any{
+				map[string]any{
+					"content":       "second occurrence",
+					"existing_code": "ev.ErrorClass = ArgosRuntimeStatusTimeout",
+					"path":          "analyzer.go",
+					"start_line":    88,
+					"end_line":      88,
+				},
+			},
+		}
+		comments, errMsg := ParseComments(args)
+		if errMsg != "" {
+			t.Fatal(errMsg)
+		}
+		if len(comments) != 1 {
+			t.Fatal("expected 1 comment")
+		}
+		c := comments[0]
+		if c.StartLine != 88 || c.EndLine != 88 {
+			t.Errorf("StartLine/EndLine = %d/%d, want 88/88", c.StartLine, c.EndLine)
+		}
+	})
+	t.Run("left zero when absent", func(t *testing.T) {
+		args := map[string]any{
+			"comments": []any{
+				map[string]any{
+					"content":       "no lines",
+					"path":          "analyzer.go",
+					"existing_code": "ev.ErrorClass = ArgosRuntimeStatusTimeout",
+				},
+			},
+		}
+		comments, errMsg := ParseComments(args)
+		if errMsg != "" {
+			t.Fatal(errMsg)
+		}
+		if comments[0].StartLine != 0 || comments[0].EndLine != 0 {
+			t.Errorf("StartLine/EndLine = %d/%d, want 0/0 without model-supplied lines", comments[0].StartLine, comments[0].EndLine)
+		}
+	})
+	t.Run("ignores zero and negative values", func(t *testing.T) {
+		args := map[string]any{
+			"comments": []any{
+				map[string]any{
+					"content":       "bad lines",
+					"path":          "analyzer.go",
+					"existing_code": "x := 1",
+					"start_line":    0,
+					"end_line":      -3,
+				},
+			},
+		}
+		comments, errMsg := ParseComments(args)
+		if errMsg != "" {
+			t.Fatal(errMsg)
+		}
+		if comments[0].StartLine != 0 || comments[0].EndLine != 0 {
+			t.Errorf("StartLine/EndLine = %d/%d, want 0/0 for invalid values", comments[0].StartLine, comments[0].EndLine)
+		}
+	})
+}
+
 func TestParseComments_CategorySeverity(t *testing.T) {
 	t.Run("parsed when present", func(t *testing.T) {
 		args := map[string]any{

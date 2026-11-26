@@ -154,6 +154,12 @@ func parseCommentsInner(args map[string]any, defaultPath string) ([]model.LlmCom
 		if pathVal, ok := obj["path"].(string); ok && pathVal != "" {
 			cm.Path = normalizeCommentPath(pathVal)
 		}
+		if start := jsonNumberToInt(obj["start_line"]); start >= 1 {
+			cm.StartLine = start
+		}
+		if end := jsonNumberToInt(obj["end_line"]); end >= 1 {
+			cm.EndLine = end
+		}
 		if cm.Path == "" {
 			cm.Path = normalizeCommentPath(defaultPath)
 		}
@@ -167,6 +173,26 @@ func parseCommentsInner(args map[string]any, defaultPath string) ([]model.LlmCom
 	return comments, repair, ""
 }
 
+// jsonNumberToInt reads a numeric comment field regardless of the Go type it
+// arrived as: JSON decode yields float64, while callers that build the args map
+// directly (stubs, other tools) may pass int or int64. Returns 0 for anything
+// that is not a finite positive-able integer source (strings, floats < 1, nil).
+func jsonNumberToInt(v any) int {
+	switch n := v.(type) {
+	case float64:
+		return int(n)
+	case int:
+		return n
+	case int64:
+		return int(n)
+	case json.Number:
+		if i, err := n.Int64(); err == nil {
+			return int(i)
+		}
+	}
+	return 0
+}
+
 func normalizeCommentPath(p string) string {
 	if p == "" {
 		return ""
@@ -177,6 +203,7 @@ func normalizeCommentPath(p string) string {
 		return ""
 	}
 	return strings.TrimPrefix(p, "/")
+
 }
 
 func normalizeCodeCommentCategory(category string) string {

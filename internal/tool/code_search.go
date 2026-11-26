@@ -104,8 +104,12 @@ func (p *CodeSearchProvider) buildGrepArgs(searchText string, caseSensitive bool
 }
 
 func hasTraversalPathComponent(pathspec string) bool {
+	// On Windows git accepts both separators, so normalize backslashes
+	// first: a pattern like ..\..\secret must not bypass the "/"-split
+	// on which the original check relied.
 	norm := strings.ReplaceAll(pathspec, "\\", "/")
 	for _, part := range strings.Split(norm, "/") {
+
 		if part == ".." {
 			return true
 		}

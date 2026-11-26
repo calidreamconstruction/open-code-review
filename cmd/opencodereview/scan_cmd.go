@@ -85,7 +85,14 @@ var scanCmd = &cobra.Command{
 		if err := validateScanOptions(&scanOpts); err != nil {
 			return err
 		}
-		return executeScanContext(cmd.Context(), scanOpts)
+		// First signal cancels the context so scan can finalize its
+		// session and preserve completed work for --resume; a second
+		// signal force-exits instead of being dropped for the whole
+		// shutdown window (see interrupt.go).
+		ctx, stop := interruptContextWithForcedExit(cmd.Context())
+		defer stop()
+		return executeScanContext(ctx, scanOpts)
+
 	},
 }
 
@@ -113,6 +120,7 @@ func executeScan(opts scanOptions) error {
 }
 
 func executeScanContext(ctx context.Context, opts scanOptions) (retErr error) {
+
 	out, closeOut, err := resolveOutputWriter(opts.outputPath, opts.outputFormat)
 	if err != nil {
 		return err
@@ -161,7 +169,7 @@ func executeScanContext(ctx context.Context, opts scanOptions) (retErr error) {
 			return err
 		}
 		scanTpl.MaxTokens = maxTokens
-		return runScanPreview(cc, scanTpl, scanPaths, opts.outputFormat, out)
+		return runScanPreview(ctx, cc, scanTpl, scanPaths, opts.outputFormat, out)
 
 	}
 
@@ -278,8 +286,8 @@ func loadScanResumeState(repoDir string, opts scanOptions, scanPaths []string) (
 	return state, nil
 }
 
-func runScanPreview(cc *commonContext, scanTpl *template.ScanTemplate, scanPaths []string, outputFormat string, out io.Writer) error {
-	preview, err := scan.Preview(context.Background(), scan.Args{
+func runScanPreview(ctx context.Context, cc *commonContext, scanTpl *template.ScanTemplate, scanPaths []string, outputFormat string, out io.Writer) error {
+	preview, err := scan.Preview(ctx, scan.Args{
 		RepoDir:          cc.RepoDir,
 		Paths:            scanPaths,
 		FileFilter:       cc.FileFilter,

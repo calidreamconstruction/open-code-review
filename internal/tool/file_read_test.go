@@ -353,6 +353,57 @@ func TestExecute_EmptyFilePath(t *testing.T) {
 	}
 }
 
+func TestExecute_ChangedPathsAllowlist(t *testing.T) {
+	dir := t.TempDir()
+	writeTestFile(t, dir, "reviewed.go", "package p\n")
+	writeTestFile(t, dir, "unrelated.go", "package q\n")
+
+	t.Run("blocks paths outside the reviewed change", func(t *testing.T) {
+		fr := &FileReader{
+			RepoDir:      dir,
+			Mode:         ModeCommit,
+			Ref:          "HEAD",
+			ChangedPaths: map[string]bool{"reviewed.go": true},
+		}
+		p := NewFileRead(fr)
+		got, err := p.Execute(context.Background(), map[string]any{"file_path": "unrelated.go"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(got, "not part of the reviewed change") {
+			t.Errorf("Execute() = %q, want out-of-change rejection", got)
+		}
+	})
+
+	t.Run("allows paths in the reviewed change", func(t *testing.T) {
+		fr := &FileReader{
+			RepoDir:      dir,
+			Mode:         ModeWorkspace,
+			ChangedPaths: map[string]bool{"reviewed.go": true},
+		}
+		p := NewFileRead(fr)
+		got, err := p.Execute(context.Background(), map[string]any{"file_path": "reviewed.go"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(got, "File: reviewed.go") {
+			t.Errorf("Execute() missing allowed file: %q", got)
+		}
+	})
+
+	t.Run("nil allowlist never restricts", func(t *testing.T) {
+		fr := &FileReader{RepoDir: dir, Mode: ModeWorkspace}
+		p := NewFileRead(fr)
+		got, err := p.Execute(context.Background(), map[string]any{"file_path": "unrelated.go"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(got, "not part of the reviewed change") {
+			t.Errorf("nil allowlist must not restrict reads: %q", got)
+		}
+	})
+}
+
 func TestExecute_InvalidLineRange(t *testing.T) {
 	dir := t.TempDir()
 	writeTestFile(t, dir, "test.txt", "a\nb\nc\n")
