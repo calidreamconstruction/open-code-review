@@ -84,14 +84,15 @@ curl http://127.0.0.1:11434/v1/chat/completions -H "Content-Type: application/js
 
 ### 我的文件没被评审
 
-运行 `ocr review --preview`（无 LLM 成本）。输出列出每个候选文件及其被保留或
-丢弃的**原因**：
+运行 `ocr review --preview`（无 LLM 成本）。输出会给出每个候选文件被保留或
+丢弃的**原因**。`vendor/`、`node_modules/` 等 provider 目录下的文件在终端里折叠为
+一行汇总；`ocr review --preview --format json` 仍会列出每一条：
 
 ```
 src/foo.go              modified
 src/foo_test.go         modified  (excluded: user_exclude)
-node_modules/lib.js     added     (excluded: provider_directory)
 imgs/logo.png           binary    (excluded: unsupported_ext)
+3 file(s) in provider directories (node_modules/) — not reviewable
 ```
 
 这些排除原因对应[文件过滤](../review-rules/#how-files-are-filtered)中的门：
@@ -258,7 +259,7 @@ ocr config set telemetry.exporter console
 ocr review
 ```
 
-LLM 调用没有自己的 span——它们记为 metric。关注 `ocr.llm.tokens_used`
+主评审循环中的 LLM 调用会产生 `llm.request` span，同时记录为 metric。关注 `ocr.llm.tokens_used`
 （counter，标 `model` + `type`）、`ocr.llm.requests_total`（counter，标 `model`
 + `status`）、`ocr.llm.request_duration_seconds`（histogram，标 `model`）。
 console exporter 会内联打印这些聚合。如需仪表盘，切换到 OTLP exporter 并发到你的
@@ -324,7 +325,7 @@ issue 已在[此](https://github.com/alibaba/open-code-review/issues)开放。
 
 ### 为什么二进制叫 `opencodereview` 而 CLI 是 `ocr`？
 
-release 中发布的静态二进制以项目命名（`opencodereview`）；NPM wrapper 为了便于使用而安装为 `ocr`。从源码构建得到 `dist/opencodereview`——复制为 `$PATH` 上的
+release 中发布的静态二进制以项目命名（`opencodereview`）；NPM wrapper 为了便于使用而安装为 `ocr`。从源码构建得到 `dist/opencodereview`（Windows 上是 `dist/opencodereview.exe`）——复制为 `$PATH` 上的
 `ocr`。
 
 ### 如何卸载？

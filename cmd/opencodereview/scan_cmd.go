@@ -91,7 +91,8 @@ var scanCmd = &cobra.Command{
 		// shutdown window (see interrupt.go).
 		ctx, stop := interruptContextWithForcedExit(cmd.Context())
 		defer stop()
-		return executeScan(ctx, scanOpts)
+		return executeScanContext(ctx, scanOpts)
+
 	},
 }
 
@@ -114,7 +115,12 @@ func splitPaths(raw string) []string {
 	return out
 }
 
-func executeScan(ctx context.Context, opts scanOptions) (retErr error) {
+func executeScan(opts scanOptions) error {
+	return executeScanContext(context.Background(), opts)
+}
+
+func executeScanContext(ctx context.Context, opts scanOptions) (retErr error) {
+
 	out, closeOut, err := resolveOutputWriter(opts.outputPath, opts.outputFormat)
 	if err != nil {
 		return err
@@ -175,6 +181,7 @@ func executeScan(ctx context.Context, opts scanOptions) (retErr error) {
 	rt, err := loadLLMRuntime(cc.Template, opts.toolConfigPath, llm.ResolveOptions{
 		Provider: opts.provider,
 		Model:    opts.model,
+		Context:  ctx,
 	})
 	if err != nil {
 		return err
@@ -221,6 +228,7 @@ func executeScan(ctx context.Context, opts scanOptions) (retErr error) {
 		MaxConcurrency:        opts.concurrency,
 		ConcurrentTaskTimeout: opts.concurrentTaskTimeout,
 		Model:                 rt.Model,
+		EndpointSource:        rt.Source,
 		Background:            opts.background,
 		GitRunner:             cc.GitRunner,
 		MaxFileSizeBytes:      scanTpl.MaxFileSizeBytes,

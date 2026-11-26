@@ -102,7 +102,7 @@ func TestRunScanPreviewAppliesMaxTokens(t *testing.T) {
 	}
 
 	out := captureStdout(t, func() {
-		if err := executeScan(context.Background(), scanOptions{
+		if err := executeScanContext(context.Background(), scanOptions{
 			repoDir:      dir,
 			paths:        "large.go",
 			outputFormat: "json",
